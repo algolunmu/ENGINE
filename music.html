@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <title>Drums &amp; Bass</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
@@ -94,6 +96,19 @@
   }
   .tog.active { background: #333333; color: #ffffff; border-color: #888888; }
   .tog:hover { border-color: #555555; color: #aaaaaa; }
+  /* Mobile layout */
+  @media (max-width: 600px) {
+    body { gap: 20px; padding: 16px 8px; justify-content: flex-start; align-items: stretch; }
+    .band { gap: 12px; }
+    .player { width: calc(50% - 6px); min-width: 130px; }
+    .controls { gap: 10px; }
+    input[type=range] { min-height: 28px; }
+    .tog { padding: 7px 6px; min-height: 32px; }
+    button { padding: 14px 24px; }
+  }
+  /* Prevent iOS callout/selection on long press */
+  canvas, button, input { -webkit-tap-highlight-color: transparent; }
+  body { -webkit-overflow-scrolling: touch; }
   .dot {
     width: 8px; height: 8px;
     border-radius: 50%;
@@ -1161,6 +1176,7 @@ function updateFeelLabel() {
 document.getElementById('playBtn').addEventListener('click', () => {
   if (running) return;
   ctx = new (window.AudioContext || window.webkitAudioContext)();
+  ctx.resume(); // iOS Safari starts context suspended even inside click handler
   masterGain = ctx.createGain();
   masterGain.gain.value = 0.85;
   masterGain.connect(ctx.destination);
@@ -1335,17 +1351,32 @@ function makeDial(id, labelId, onchange) {
   drawDial(canvas, value);
 
   let dragY = null;
-  canvas.addEventListener('mousedown', e => { dragY = e.clientY; e.preventDefault(); });
-  window.addEventListener('mousemove', e => {
-    if (dragY === null) return;
-    const delta = dragY - e.clientY; // drag up = increase
+
+  function applyDelta(newY) {
+    const delta = dragY - newY;
     value = Math.max(0, Math.min(100, value + delta * 0.8));
-    dragY = e.clientY;
+    dragY = newY;
     drawDial(canvas, value);
     document.getElementById(labelId).textContent = Math.round(value);
     onchange(value / 100);
-  });
-  window.addEventListener('mouseup', () => { dragY = null; });
+  }
+
+  // Mouse
+  canvas.addEventListener('mousedown', e => { dragY = e.clientY; e.preventDefault(); });
+  window.addEventListener('mousemove', e => { if (dragY !== null) applyDelta(e.clientY); });
+  window.addEventListener('mouseup',   () => { dragY = null; });
+
+  // Touch (iOS)
+  canvas.addEventListener('touchstart', e => {
+    dragY = e.touches[0].clientY; e.preventDefault();
+  }, { passive: false });
+  window.addEventListener('touchmove', e => {
+    if (dragY === null) return;
+    applyDelta(e.touches[0].clientY);
+    e.preventDefault();
+  }, { passive: false });
+  window.addEventListener('touchend', () => { dragY = null; });
+
   canvas.addEventListener('wheel', e => {
     e.preventDefault();
     value = Math.max(0, Math.min(100, value - e.deltaY * 0.3));
