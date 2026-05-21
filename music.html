@@ -144,17 +144,31 @@
       </div>
     </div>
     <div class="player-slider">
-      <label>SLOP</label>
+      <label>DILLA</label>
       <div class="slider-row">
-        <input type="range" id="slopSlider" min="0" max="100" value="0">
-        <span class="slider-val" id="slopLabel">0</span>
+        <input type="range" id="slopSlider" min="0" max="100" value="50">
+        <span class="slider-val" id="slopLabel">50</span>
+      </div>
+    </div>
+    <div class="player-slider">
+      <label>PURDIE</label>
+      <div class="slider-row">
+        <input type="range" id="purdieSlider" min="0" max="100" value="50">
+        <span class="slider-val" id="purdieLabel">50</span>
+      </div>
+    </div>
+    <div class="player-slider">
+      <label>APHEX</label>
+      <div class="slider-row">
+        <input type="range" id="aphexSlider" min="0" max="100" value="0">
+        <span class="slider-val" id="aphexLabel">0</span>
       </div>
     </div>
     <div class="player-slider">
       <label>REPEAT &lt;&gt; IMPROV</label>
       <div class="slider-row">
-        <input type="range" id="drumsImprovSlider" min="0" max="100" value="50">
-        <span class="slider-val" id="drumsImprovLabel">50</span>
+        <input type="range" id="drumsImprovSlider" min="0" max="100" value="0">
+        <span class="slider-val" id="drumsImprovLabel">0</span>
       </div>
     </div>
     <div class="player-slider">
@@ -162,6 +176,13 @@
       <div class="slider-row">
         <input type="range" id="drumReverbSlider" min="0" max="100" value="0">
         <span class="slider-val" id="drumReverbLabel">0</span>
+      </div>
+    </div>
+    <div class="player-slider">
+      <label>ECHO</label>
+      <div class="slider-row">
+        <input type="range" id="drumEchoSlider" min="0" max="100" value="0">
+        <span class="slider-val" id="drumEchoLabel">0</span>
       </div>
     </div>
   </div>
@@ -187,6 +208,13 @@
       <div class="slider-row">
         <input type="range" id="alienReverbSlider" min="0" max="100" value="0">
         <span class="slider-val" id="alienReverbLabel">0</span>
+      </div>
+    </div>
+    <div class="player-slider">
+      <label>ECHO</label>
+      <div class="slider-row">
+        <input type="range" id="alienEchoSlider" min="0" max="100" value="0">
+        <span class="slider-val" id="alienEchoLabel">0</span>
       </div>
     </div>
   </div>
@@ -219,6 +247,13 @@
       <div class="slider-row">
         <input type="range" id="chordsReverbSlider" min="0" max="100" value="0">
         <span class="slider-val" id="chordsReverbLabel">0</span>
+      </div>
+    </div>
+    <div class="player-slider">
+      <label>ECHO</label>
+      <div class="slider-row">
+        <input type="range" id="chordsEchoSlider" min="0" max="100" value="0">
+        <span class="slider-val" id="chordsEchoLabel">0</span>
       </div>
     </div>
   </div>
@@ -258,6 +293,13 @@
       <div class="slider-row">
         <input type="range" id="bassReverbSlider" min="0" max="100" value="0">
         <span class="slider-val" id="bassReverbLabel">0</span>
+      </div>
+    </div>
+    <div class="player-slider">
+      <label>ECHO</label>
+      <div class="slider-row">
+        <input type="range" id="bassEchoSlider" min="0" max="100" value="0">
+        <span class="slider-val" id="bassEchoLabel">0</span>
       </div>
     </div>
   </div>
@@ -301,6 +343,11 @@
     <button class="tog mode-tog" data-mode="major">Major</button>
     <button class="tog mode-tog" data-mode="phrygian">Phryg</button>
     <button class="tog mode-tog" data-mode="lydian">Lydian</button>
+    <button class="tog mode-tog" data-mode="pent_minor">PentMin</button>
+    <button class="tog mode-tog" data-mode="pent_major">PentMaj</button>
+    <button class="tog mode-tog" data-mode="hirajoshi">Hira</button>
+    <button class="tog mode-tog" data-mode="phrygian_dom">Orient</button>
+    <button class="tog mode-tog" data-mode="byzantine">Byzan</button>
   </div>
 </div>
 <div class="feel" id="feelLabel">—</div>
@@ -310,7 +357,18 @@
 let ctx, masterGain, sidechainGain, bassGain, drumVol, bassVol, alienVol, chordsVol;
 let reverbConvolver, drumReverbSend, bassReverbSend, alienReverbSend, chordsReverbSend;
 let running = false;
-let slop = 0;
+// Dial values persist across engine restarts so volumes don't reset
+let drumVolVal = 0.8, bassVolVal = 0.85, alienVolVal = 1.0, chordsVolVal = 0.65;
+// Reactive space: each instrument reports busyness so others can leave room
+let arpActivity  = 0.5;  // 0=silent 1=dense
+let bassActivity = 0.5;
+let alienActivity = 0.5;
+// Drum personality
+let purdie = 0.5;
+let aphex  = 0.0;
+// Echo sends
+let drumEchoSend, bassEchoSend, alienEchoSend, chordsEchoSend;
+let slop = 0.5;
 let bassImprov = 0.5;
 let bassSlop = 0;
 let pump = 0;
@@ -319,7 +377,7 @@ let bassDensity = 0.5;
 let chordsImprov = 0.5;
 let chordsSlop = 0;
 let lockedChordsPattern = null;
-let drumsImprov = 0.5; // 0 = locked loop, 1 = full improv
+let drumsImprov = 0.0; // 0 = locked loop, 1 = full improv
 let schedulerTimer = null;
 let nextBeatTime = 0;
 let beatStep = 0;
@@ -338,13 +396,21 @@ let keyRoot = 60;   // C (MIDI 60) — default key
 let currentMode = 'dorian';
 
 const SCALES = {
-  dorian:     [0,2,3,5,7,9,10],
-  minor:      [0,2,3,5,7,8,10],
-  major:      [0,2,4,5,7,9,11],
-  mixolydian: [0,2,4,5,7,9,10],
-  phrygian:   [0,1,3,5,7,8,10],
-  lydian:     [0,2,4,6,7,9,11],
+  dorian:      [0,2,3,5,7,9,10],
+  minor:       [0,2,3,5,7,8,10],
+  major:       [0,2,4,5,7,9,11],
+  mixolydian:  [0,2,4,5,7,9,10],
+  phrygian:    [0,1,3,5,7,8,10],
+  lydian:      [0,2,4,6,7,9,11],
+  pent_minor:  [0,3,5,7,10],          // minor pentatonic
+  pent_major:  [0,2,4,7,9],           // major pentatonic
+  hirajoshi:   [0,2,3,7,8],           // Japanese koto scale
+  phrygian_dom:[0,1,4,5,7,8,10],      // Phrygian dominant — Spanish/Middle Eastern
+  byzantine:   [0,1,4,5,7,8,11],      // Double harmonic — very oriental
 };
+
+// Modes where the arp should use scale tones instead of strict chord tones
+const SCALE_ARP_MODES = new Set(['pent_minor','pent_major','hirajoshi','phrygian_dom','byzantine']);
 
 function currentScale() { return SCALES[currentMode] || SCALES.dorian; }
 
@@ -400,32 +466,35 @@ function scaleNotes(octave = 0) {
 
 // ─── DRUM SYNTHS ────────────────────────────────────────────────────────────
 function playKick(t, vel = 1, heavy = false) {
-  const t0  = heavy ? thump : 0;          // 0–1 thump intensity
-  const decay = 0.5 + t0 * 0.25;          // longer tail at full thump
-  const startFreq = 160 + t0 * 22;        // lower start = bigger thump
-  const endFreq   = 40  - t0 * 10;        // deeper end
-  const sweepTime = 0.08 + t0 * 0.05;
+  const t0 = heavy ? thump : 0;
+
+  // Atlanta trap boom: fast punch down to deep sub, medium decay
+  const startFreq = 190 + t0 * 30;    // 190–220 Hz — punchy not clicky
+  const endFreq   = 50  - t0 * 8;     // 42–50 Hz deep bottom
+  const sweepTime = 0.055 + t0 * 0.03; // 55–85ms fast drop
+  const decay     = 0.45 + t0 * 0.35; // 0.45–0.8s — tight but weighty
 
   const g = ctx.createGain();
-  g.gain.setValueAtTime(vel * (0.9 + t0 * 0.12), t);
+  g.gain.setValueAtTime(vel * 1.1, t);
   g.gain.exponentialRampToValueAtTime(0.001, t + decay);
   g.connect(drumVol);
 
   const osc = ctx.createOscillator();
+  osc.type = 'sine';
   osc.frequency.setValueAtTime(startFreq, t);
-  osc.frequency.exponentialRampToValueAtTime(Math.max(20, endFreq), t + sweepTime);
+  osc.frequency.exponentialRampToValueAtTime(endFreq, t + sweepTime);
   osc.connect(g);
   osc.start(t); osc.stop(t + decay);
 
-  // click transient — harder at full thump
-  const buf = ctx.createBuffer(1, ctx.sampleRate * 0.012, ctx.sampleRate);
+  // Hard transient click — the snap that cuts through
+  const buf = ctx.createBuffer(1, ctx.sampleRate * 0.014, ctx.sampleRate);
   const d = buf.getChannelData(0);
   for (let i = 0; i < d.length; i++) d[i] = (Math.random()*2-1) * (1 - i/d.length);
   const src = ctx.createBufferSource();
   src.buffer = buf;
   const cg = ctx.createGain();
-  cg.gain.setValueAtTime(vel * (0.4 + t0 * 0.28), t);
-  cg.gain.exponentialRampToValueAtTime(0.001, t + 0.012);
+  cg.gain.setValueAtTime(vel * (0.5 + t0 * 0.2), t);
+  cg.gain.exponentialRampToValueAtTime(0.001, t + 0.014);
   src.connect(cg); cg.connect(drumVol);
   src.start(t);
 
@@ -519,43 +588,26 @@ function playRide(t, vel = 0.35) {
   });
 }
 
-// ─── BASS SYNTH (Bootsy Collins) ─────────────────────────────────────────────
+// ─── BASS SYNTH ───────────────────────────────────────────────────────────────
 function playBass(t, midi, dur, vel = 0.7) {
   const freq = mtof(midi - 12);
 
-  // Reese bass: two detuned saws for cold thickness
-  const osc1 = ctx.createOscillator(); osc1.type = 'sawtooth';
-  const osc2 = ctx.createOscillator(); osc2.type = 'sawtooth';
-  osc1.frequency.value = freq;
-  osc2.frequency.value = freq * 1.012;  // wide detune = cold beating
+  const osc = ctx.createOscillator();
+  osc.type = 'sine';
+  osc.frequency.value = freq;
 
-  // Body sine one octave up — the pitch your ear locks to
-  const body = ctx.createOscillator(); body.type = 'sine';
-  body.frequency.value = freq * 2;
-  const bodyGain = ctx.createGain(); bodyGain.gain.value = 0.5;
-
-  // Cold dark resonant LP — slow wob, opens on hit, closes heavy
-  const lp = ctx.createBiquadFilter();
-  lp.type = 'lowpass'; lp.Q.value = 11;
-  const fOpen = 280 + vel * 820;
-  lp.frequency.setValueAtTime(60, t);
-  lp.frequency.exponentialRampToValueAtTime(fOpen, t + 0.02 + vel * 0.015);
-  lp.frequency.exponentialRampToValueAtTime(90, t + dur * 0.68);
-
-  // Envelope: sharp onset, long sustain
   const env = ctx.createGain();
   env.gain.setValueAtTime(0, t);
-  env.gain.linearRampToValueAtTime(vel * 0.72, t + 0.005);
-  env.gain.setValueAtTime(vel * 0.58, t + dur - 0.025);
-  env.gain.linearRampToValueAtTime(0, t + dur);
+  env.gain.linearRampToValueAtTime(vel, t + 0.006);
+  env.gain.exponentialRampToValueAtTime(vel * 0.75, t + 0.04);
+  env.gain.setValueAtTime(vel * 0.75, t + dur - 0.02);
+  env.gain.linearRampToValueAtTime(0.0001, t + dur);
 
-  osc1.connect(lp); osc2.connect(lp);
-  body.connect(bodyGain);
-  lp.connect(env); bodyGain.connect(env);
+  osc.connect(env);
   env.connect(bassVol);
 
-  osc1.start(t); osc2.start(t); body.start(t);
-  osc1.stop(t + dur + 0.05); osc2.stop(t + dur + 0.05); body.stop(t + dur + 0.05);
+  osc.start(t);
+  osc.stop(t + dur + 0.05);
 
   flash('bass', vel, noteName(midi));
 }
@@ -641,24 +693,25 @@ function scheduleAlienPhrase(barStart, stepDur) {
   const scaleMidi = scaleNotes(2);
   const baseFreqs = scaleMidi.map(m => mtof(m));
 
-  // Rap phrase: dense rapid-fire syllables with phrasing gaps
-  // Pharcyde style: fast, syncopated, with breath pauses
+  // React to other instruments: pull back when bass+arp are busy, fill when quiet
+  const crowding = (bassActivity + arpActivity) * 0.5; // 0=quiet room, 1=packed
+  const effectiveDensity = Math.max(0.05, alienDensity - crowding * 0.45 + (crowding < 0.3 ? 0.25 : 0));
+
   const syllables = [];
   let pos = 0;
   const maxSteps = 16;
 
   while (pos < maxSteps) {
-    // Dense run or a rest
-    if (Math.random() < alienDensity) {
-      const runLen = Math.floor(1 + Math.random() * 3); // 1–3 syllables in a run
+    if (Math.random() < effectiveDensity) {
+      const runLen = Math.floor(1 + Math.random() * 3);
       for (let i = 0; i < runLen && pos < maxSteps; i++) {
         syllables.push(pos);
-        pos += Math.random() < 0.6 ? 1 : 0.5; // some super-fast 32nd note hits
+        pos += Math.random() < 0.6 ? 1 : 0.5;
       }
     }
-    // Breath gap
-    pos += 1 + Math.floor(Math.random() * (alienDensity < 0.5 ? 4 : 2));
+    pos += 1 + Math.floor(Math.random() * (effectiveDensity < 0.5 ? 4 : 2));
   }
+  alienActivity = syllables.length / 8;
 
   syllables.forEach(step => {
     if (step >= maxSteps) return;
@@ -675,41 +728,54 @@ function scheduleAlienPhrase(barStart, stepDur) {
 // ─── 8-BIT ARP ────────────────────────────────────────────────────────────────
 function playArpNote(t, midi, dur, vel) {
   const freq = mtof(midi);
-  const osc1 = ctx.createOscillator(); osc1.type = 'square'; osc1.frequency.value = freq;
-  const osc2 = ctx.createOscillator(); osc2.type = 'square'; osc2.frequency.value = freq * 1.007;
-  const m1 = ctx.createGain(); m1.gain.value = 0.55;
-  const m2 = ctx.createGain(); m2.gain.value = 0.45;
+  // Square + triangle mix — sparkly not heavy
+  const osc1 = ctx.createOscillator(); osc1.type = 'square';    osc1.frequency.value = freq;
+  const osc2 = ctx.createOscillator(); osc2.type = 'triangle';  osc2.frequency.value = freq;
+  const m1 = ctx.createGain(); m1.gain.value = 0.22;
+  const m2 = ctx.createGain(); m2.gain.value = 0.78;
+  // Open filter — let the brightness through
   const lp = ctx.createBiquadFilter();
-  lp.type = 'lowpass'; lp.frequency.value = 2800; lp.Q.value = 0.4;
+  lp.type = 'lowpass'; lp.frequency.value = 6000; lp.Q.value = 0.2;
+  // Fast attack, quick exponential decay — ping not sustain
   const env = ctx.createGain();
-  env.gain.setValueAtTime(vel * 0.42, t);
-  env.gain.setValueAtTime(vel * 0.38, t + dur - 0.008);
-  env.gain.linearRampToValueAtTime(0, t + dur + 0.004);
+  env.gain.setValueAtTime(vel * 0.6, t);
+  env.gain.exponentialRampToValueAtTime(vel * 0.12, t + dur * 0.5);
+  env.gain.linearRampToValueAtTime(0, t + dur);
   osc1.connect(m1); osc2.connect(m2); m1.connect(lp); m2.connect(lp);
   lp.connect(env); env.connect(chordsVol);
   osc1.start(t); osc2.start(t); osc1.stop(t + dur + 0.01); osc2.stop(t + dur + 0.01);
 }
 
-// Each entry: indices into the 8-note pool [root, 3rd, 5th, 7th, root+oct, 7th, 3rd+oct, 5th+oct]
+// Note pool indices: 0-3 = mid oct, 4-7 = high oct, 8-9 = very high
 const ARP_SEQUENCES = [
-  [0, 1, 2, 3, 4, 3, 2, 1],   // up-down two octaves
-  [0, 2, 1, 3, 0, 2, 4, 3],   // skip-around
-  [0, 3, 1, 4, 2, 3, 0, 2],   // jumpy inversions
-  [4, 3, 2, 1, 0, 1, 2, 3],   // top-down then up
-  [0, 1, 3, 1, 2, 3, 4, 3],   // cascade with repeats
-  [0, 0, 2, 3, 0, 0, 3, 4],   // root-heavy
+  [4, 5, 6, 7, 4, 5, 6, 7],      // high octave sparkle
+  [0, 4, 1, 5, 2, 6, 3, 7],      // alternating low/high
+  [4, 7, 5, 6, 4, 8, 5, 9],      // high with sky jumps
+  [0, 5, 4, 1, 6, 3, 7, 2],      // cross-octave scramble
+  [4, 4, 6, 5, 7, 4, 6, 5],      // high root emphasis
+  [0, 4, 4, 5, 1, 6, 4, 7],      // low anchor + high runs
+  [8, 6, 4, 5, 9, 7, 5, 6],      // cascade from very high
+  [4, 6, 5, 7, 4, 5, 8, 6],      // skip up high
 ];
 
-// 16-bit masks for which 16th-note steps fire per bar
+// Lots more rhythmic variety — sparse to busy, syncopated, burst patterns
 const ARP_MASKS = [
+  0b1000000010000000,  // just 1 and 3 — very sparse
+  0b1000100010001000,  // quarter notes
+  0b1000001000000100,  // scattered 3 notes
+  0b1001000010010000,  // triplet-feel groups
+  0b1010000010100000,  // 8th pairs, front and back
+  0b0000101000001010,  // back-half syncopation
+  0b1000101000100010,  // spread syncopated
+  0b1010101000000000,  // front-loaded 8ths
+  0b0000000010101010,  // back-loaded 8ths
+  0b1110000011100000,  // 16th bursts
   0b1010101010101010,  // straight 8ths
+  0b1011000010110000,  // double-tap groups
+  0b1001100100110010,  // dense synco
+  0b1110100011101000,  // busy with gaps
+  0b1111000011110000,  // 16th clumps
   0b1111111111111111,  // all 16ths
-  0b1010101011101110,  // 8ths + 16th burst at beat 3-4
-  0b1110101010101010,  // triplet pickup into 8ths
-  0b1010111010101010,  // syncopated fill
-  0b1011101010111010,  // two pickups
-  0b1010101010101110,  // 8ths then 16th close
-  0b1110111011101110,  // busy 16th groups
 ];
 
 function scheduleChords(barStart, stepDur) {
@@ -730,32 +796,51 @@ function scheduleChords(barStart, stepDur) {
     lockedChordsPattern = { seqIdx, mask, key: chordKey };
   }
 
-  const tones = chordTones(r, q, 1);  // [root, 3rd, 5th, 7th]
-  const pool = [
-    tones[0], tones[1], tones[2], tones[3],
-    tones[0] + 12, tones[3], tones[1] + 12, tones[2],
-  ];
+  // Oriental/pentatonic modes: pull from the mode scale directly so no clashing tones
+  let pool;
+  if (SCALE_ARP_MODES.has(currentMode)) {
+    const mid  = globalScaleNotes(1);
+    const high = globalScaleNotes(2);
+    pool = [...mid, ...high, high[0]+12, high[2]+12];
+    // pad to at least 10 entries
+    while (pool.length < 10) pool.push(pool[pool.length - 1] + 12);
+  } else {
+    const mid  = chordTones(r, q, 1);
+    const high = chordTones(r, q, 2);
+    pool = [mid[0], mid[1], mid[2], mid[3], high[0], high[1], high[2], high[3], high[1]+12, high[3]+12];
+  }
+
   const seq = ARP_SEQUENCES[seqIdx];
-  const maxLateMs = chordsSlop * 58;   // Dilla drag: up to 58ms late at full broken
-  const dropChance = chordsSlop * 0.45; // broken = notes randomly fall out
+  const maxLateMs  = chordsSlop * 55;
+  const swingAmt   = chordsSlop * 0.28;
+  // When bass is busy, arp drops more notes to leave space
+  const spaceDrop  = chordsSlop * 0.38 + bassActivity * 0.22;
+  let noteCount = 0;
   let flashed = false;
 
   for (let s = 0; s < 16; s++) {
     if (!(mask & (1 << (15 - s)))) continue;
-    // Dilla: skip notes at high slop ("broken" feel)
-    if (s > 0 && Math.random() < dropChance * 0.6) continue;
-    const note = pool[seq[s % seq.length]];
-    // Bias late — Dilla drags behind the grid
-    const sign = Math.random() < 0.06 ? -1 : 1;
-    const late = Math.random() * maxLateMs;
-    const slip = s === 0 ? 0 : sign * late * 0.001;
-    const t = barStart + s * stepDur + slip;
-    const gate = 0.50 + chordsSlop * 0.28;
-    const dur = stepDur * gate;
-    const vel = 0.35 + Math.random() * (0.18 + chordsSlop * 0.12);
+    if (s > 0 && Math.random() < spaceDrop * 0.5) continue;
+
+    const note = pool[seq[s % seq.length] % pool.length];
+
+    const swing = (s % 4 === 2) ? swingAmt * stepDur : 0;
+    const sign  = Math.random() < 0.1 ? -1 : 1;
+    const drag  = s === 0 ? 0 : sign * Math.random() * maxLateMs * 0.001;
+    const t = barStart + s * stepDur + swing + drag;
+
+    const gate = 0.15 + Math.random() * 0.25 + chordsSlop * 0.15;
+    const dur  = stepDur * gate;
+
+    const vel = Math.random() < 0.25
+      ? 0.55 + Math.random() * 0.35
+      : 0.08 + Math.random() * 0.28;
+
     playArpNote(t, note, dur, vel);
+    noteCount++;
     if (!flashed) { flash('chords', vel, NOTE_NAMES[r % 12] + q); flashed = true; }
   }
+  arpActivity = noteCount / 10; // normalise ~0-1
 }
 
 // ─── GROOVE PATTERNS ─────────────────────────────────────────────────────────
@@ -843,13 +928,14 @@ function bassTimingOffset() {
 
 function bassVelocity(step, isDownbeat) {
   if (bassSlop < 0.05) {
-    return isDownbeat ? 0.75 : 0.45 + Math.random() * 0.2;
+    // Tight: wide but consistent range
+    return isDownbeat ? 0.82 + Math.random() * 0.1 : 0.3 + Math.random() * 0.35;
   }
-  // Bootsy: extreme contrast — fat pops and barely-there ghost notes
+  // Sloppy: extreme pop vs ghost contrast
   if (isDownbeat || Math.random() < bassSlop * 0.5) {
-    return 0.7 + bassSlop * 0.25 + Math.random() * 0.05; // POP
+    return 0.78 + bassSlop * 0.2 + Math.random() * 0.06; // POP — up to ~1.0
   }
-  return 0.08 + Math.random() * (0.2 + bassSlop * 0.15); // ghost
+  return 0.04 + Math.random() * (0.14 + bassSlop * 0.1); // ghost — nearly silent
 }
 
 function scheduleBassBar(barStart, stepDur) {
@@ -863,35 +949,41 @@ function scheduleBassBar(barStart, stepDur) {
   const shouldReuse = fullyLocked
     || (lockedBassPattern && lockedBassChordKey === chordKey && Math.random() > bassImprov);
 
-  let pattern, notes;
+  let pattern, notes, vels;
   if (shouldReuse) {
     pattern = lockedBassPattern.steps;
     notes   = lockedBassPattern.notes;
+    vels    = lockedBassPattern.vels;
   } else {
     pattern = generateBassRhythm();
     notes   = pattern.map(() => pickBassNote(chord));
-    // Save as the new locked pattern
-    lockedBassPattern = { steps: pattern, notes };
+    // Generate and lock velocities so the dynamic shape doesn't modulate bar-to-bar
+    vels = pattern.map((step, i) => {
+      const isOne      = step === 0;
+      const isDownbeat = step % 4 === 0;
+      return isOne ? 0.96 + Math.random() * 0.04 : bassVelocity(step, isDownbeat);
+    });
+    lockedBassPattern = { steps: pattern, notes, vels };
     lockedBassChordKey = chordKey;
   }
 
   // Always anchor beat 1 to the root — the ONE owns the root
-  const rootMidi = chord.r - 12; // one octave down
-  if (!pattern.includes(0)) { pattern.unshift(0); notes.unshift(rootMidi); }
+  const rootMidi = chord.r - 12;
+  if (!pattern.includes(0)) { pattern.unshift(0); notes.unshift(rootMidi); vels.unshift(0.96 + Math.random() * 0.04); }
   else { notes[pattern.indexOf(0)] = rootMidi; }
+
+  bassActivity = pattern.length / 10; // normalise ~0-1
 
   pattern.forEach((step, i) => {
     if (step >= STEPS) return;
     const nextStep = pattern[i + 1] || STEPS;
     const dur = (nextStep - step) * stepDur * (bassSlop > 0.4 ? 0.75 : 0.9);
-    const isOne = step === 0;
     const isDownbeat = step % 4 === 0;
     const tOffset = isDownbeat ? 0 : bassTimingOffset();
     const t = barStart + step * stepDur + tOffset;
-    const vel = isOne ? 0.92 : bassVelocity(step, isDownbeat); // the ONE hits hardest
+    const vel = vels[i];
     playBass(t, notes[i], dur, vel);
 
-    // Bootsy ghost slap: quiet extra note halfway into a long gap at high slop
     if (bassSlop > 0.5 && nextStep - step >= 4 && Math.random() < bassSlop * 0.4) {
       const ghostT = barStart + (step + (nextStep - step) * 0.5) * stepDur + bassTimingOffset();
       playBass(ghostT, notes[i], stepDur * 0.5, 0.06 + Math.random() * 0.08);
@@ -916,10 +1008,17 @@ function slopVel(base) {
 function scheduleDrumBar(barStart, stepDur, fillProb = 0.1) {
   const groove = currentGroove;
   const isFill = Math.random() < fillProb;
-  const swingAmt = groove.swing || 0;
+
+  // PURDIE: adds extra swing on top of groove's own swing, plus extra ghosts
+  const purdieSwing = purdie * 0.18;
+  const swingAmt = (groove.swing || 0) + purdieSwing;
+  const ghostChance = slop * 0.18 + purdie * 0.35;
+  const hatDropChance = slop * 0.3;
+
+  // APHEX: chance of a silent bar or random glitch hits
+  if (aphex > 0.5 && Math.random() < aphex * 0.15) return; // whole bar silence
 
   for (let s = 0; s < 16; s++) {
-    // Swing: push "and" beats (s % 4 === 2) toward triplet position
     const swing = (s % 4 === 2) ? swingAmt * stepDur : 0;
     const grid = barStart + s * stepDur + swing;
     const fillZone = isFill && s >= 12;
@@ -932,27 +1031,39 @@ function scheduleDrumBar(barStart, stepDur, fillProb = 0.1) {
       continue;
     }
 
-    const hatDropChance = slop * 0.4;
-    const ghostChance = slop * 0.25;
-
     if (groove.kick[s]) {
-      if (s === 0) playKick(grid, 1.0, true);           // the ONE — heavy, no slop
+      if (s === 0) playKick(grid, 1.0, true);
       else playKick(grid + slopOffset(), slopVel(0.82));
     }
     if (groove.snare[s]) playSnare(grid + slopOffset(), slopVel(0.75));
+
+    // PURDIE: ghost snares from groove pattern + extra from purdie slider
     if (groove.ghost && groove.ghost[s]) {
-      playGhostSnare(grid + slopOffset(), 0.055 + Math.random() * 0.065);
+      playGhostSnare(grid + slopOffset(), 0.04 + purdie * 0.06 + Math.random() * 0.05);
+    } else if (Math.random() < ghostChance * 0.4) {
+      // Purdie-generated extra ghosts on off-steps
+      playGhostSnare(grid + slopOffset(), 0.03 + Math.random() * 0.04);
     }
 
     if (groove.hatO[s]) {
       if (Math.random() > hatDropChance) playHihat(grid + slopOffset(), slopVel(0.5), true);
     } else if (groove.hat[s]) {
       if (Math.random() > hatDropChance) playHihat(grid + slopOffset(), slopVel(0.25));
-      if (Math.random() < ghostChance) {
+      if (Math.random() < slop * 0.25) {
         playHihat(grid + stepDur * 0.5 + slopOffset(), slopVel(0.1));
       }
     }
 
+    // APHEX: glitch — random extra hit at half-step, or stutter repeat
+    if (aphex > 0 && Math.random() < aphex * 0.12) {
+      const glitchT = grid + stepDur * (Math.random() < 0.5 ? 0.5 : 0.25) + slopOffset();
+      if (Math.random() < 0.5) playHihat(glitchT, 0.08 + Math.random() * 0.12);
+      else playSnare(glitchT, 0.06 + Math.random() * 0.1);
+    }
+    // APHEX: stutter kick (rapid repeat)
+    if (aphex > 0.4 && groove.kick[s] && s > 0 && Math.random() < aphex * 0.08) {
+      playKick(grid + stepDur * 0.25, slopVel(0.4));
+    }
   }
 }
 
@@ -1055,14 +1166,14 @@ document.getElementById('playBtn').addEventListener('click', () => {
   masterGain.connect(ctx.destination);
   // Per-instrument volume nodes
   // Per-instrument volume nodes
-  drumVol   = ctx.createGain(); drumVol.gain.value   = 0.8;  drumVol.connect(masterGain);
-  alienVol  = ctx.createGain(); alienVol.gain.value  = 1.0;  alienVol.connect(masterGain);
-  chordsVol = ctx.createGain(); chordsVol.gain.value = 0.65; chordsVol.connect(masterGain);
+  drumVol   = ctx.createGain(); drumVol.gain.value   = drumVolVal;   drumVol.connect(masterGain);
+  alienVol  = ctx.createGain(); alienVol.gain.value  = alienVolVal;  alienVol.connect(masterGain);
+  chordsVol = ctx.createGain(); chordsVol.gain.value = chordsVolVal; chordsVol.connect(masterGain);
   // Bass has its own sidechain bus (ducked by kick)
   sidechainGain = ctx.createGain(); sidechainGain.gain.value = 1;
   sidechainGain.connect(ctx.destination);
   bassGain = ctx.createGain(); bassGain.gain.value = 0.8;
-  bassVol  = ctx.createGain(); bassVol.gain.value  = 0.85;
+  bassVol  = ctx.createGain(); bassVol.gain.value  = bassVolVal;
   bassVol.connect(bassGain); bassGain.connect(sidechainGain);
 
   // Shared reverb — one convolver, per-instrument send gains
@@ -1088,15 +1199,34 @@ document.getElementById('playBtn').addEventListener('click', () => {
   chordsReverbSend = makeReverbSend(chordsVol);
   bassReverbSend   = makeReverbSend(bassVol);
 
+  // Per-instrument echo (tempo-synced delay)
+  function makeEcho(sourceNode) {
+    const delayTime = (60 / bpm) * 0.75; // dotted 8th note
+    const delay    = ctx.createDelay(2.0);  delay.delayTime.value = delayTime;
+    const feedback = ctx.createGain();      feedback.gain.value   = 0.38;
+    const send     = ctx.createGain();      send.gain.value       = 0;
+    const wet      = ctx.createGain();      wet.gain.value        = 0.7;
+    sourceNode.connect(send);
+    send.connect(delay);
+    delay.connect(feedback); feedback.connect(delay); // feedback loop
+    delay.connect(wet);      wet.connect(masterGain);
+    return send;
+  }
+  drumEchoSend   = makeEcho(drumVol);
+  alienEchoSend  = makeEcho(alienVol);
+  chordsEchoSend = makeEcho(chordsVol);
+  bassEchoSend   = makeEcho(bassVol);
+
   beatStep = 0;
   barCount = 0;
   currentChordIdx = 0;
-  progIdx = 0;
-  currentProg = buildProgression(0);
-  lastBassNote = 43;
+  progIdx = Math.floor(Math.random() * RELATIVE_PROGRESSIONS.length);
+  currentProg = buildProgression(progIdx);
+  lastBassNote = keyRoot - 24 + Math.floor(Math.random() * 5); // fresh random start note
   lockedBassPattern = null;
   lockedBassChordKey = '';
   lockedChordsPattern = null;
+  if (drumsImprov > 0) currentGroove = GROOVE_PATTERNS[Math.floor(Math.random() * GROOVE_PATTERNS.length)];
 
   nextBeatTime = ctx.currentTime + 0.1;
   running = true;
@@ -1232,28 +1362,42 @@ thumpSlider.addEventListener('input', () => {
   thumpLabel.textContent = thumpSlider.value;
 });
 
-makeDial('drumVolDial',   'drumVolLabel',   v => { if (drumVol)   drumVol.gain.value   = v; });
-makeDial('bassVolDial',   'bassVolLabel',   v => { if (bassVol)   bassVol.gain.value   = v; });
-makeDial('alienVolDial',  'alienVolLabel',  v => { if (alienVol)  alienVol.gain.value  = v; });
-makeDial('chordsVolDial', 'chordsVolLabel', v => { if (chordsVol) chordsVol.gain.value = v; });
+makeDial('drumVolDial',   'drumVolLabel',   v => { drumVolVal   = v; if (drumVol)   drumVol.gain.value   = v; });
+makeDial('bassVolDial',   'bassVolLabel',   v => { bassVolVal   = v; if (bassVol)   bassVol.gain.value   = v; });
+makeDial('alienVolDial',  'alienVolLabel',  v => { alienVolVal  = v; if (alienVol)  alienVol.gain.value  = v; });
+makeDial('chordsVolDial', 'chordsVolLabel', v => { chordsVolVal = v; if (chordsVol) chordsVol.gain.value = v; });
 
 // Alien controls
 document.getElementById('alienDensitySlider').addEventListener('input', function() {
   alienDensity = parseInt(this.value) / 100;
   document.getElementById('alienDensityLabel').textContent = this.value;
 });
-// Reverb sends — all four instruments
+// Reverb + Echo sends — same pattern
 [
   ['drumReverbSlider',   'drumReverbLabel',   () => drumReverbSend],
   ['alienReverbSlider',  'alienReverbLabel',  () => alienReverbSend],
   ['chordsReverbSlider', 'chordsReverbLabel', () => chordsReverbSend],
   ['bassReverbSlider',   'bassReverbLabel',   () => bassReverbSend],
+  ['drumEchoSlider',     'drumEchoLabel',     () => drumEchoSend],
+  ['alienEchoSlider',    'alienEchoLabel',    () => alienEchoSend],
+  ['chordsEchoSlider',   'chordsEchoLabel',   () => chordsEchoSend],
+  ['bassEchoSlider',     'bassEchoLabel',     () => bassEchoSend],
 ].forEach(([sliderId, labelId, getNode]) => {
   document.getElementById(sliderId).addEventListener('input', function() {
     const node = getNode();
     if (node) node.gain.value = parseInt(this.value) / 100;
     document.getElementById(labelId).textContent = this.value;
   });
+});
+
+// Drum personality sliders
+document.getElementById('purdieSlider').addEventListener('input', function() {
+  purdie = parseInt(this.value) / 100;
+  document.getElementById('purdieLabel').textContent = this.value;
+});
+document.getElementById('aphexSlider').addEventListener('input', function() {
+  aphex = parseInt(this.value) / 100;
+  document.getElementById('aphexLabel').textContent = this.value;
 });
 
 // Chords controls
